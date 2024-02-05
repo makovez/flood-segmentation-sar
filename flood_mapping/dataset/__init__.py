@@ -1,1 +1,1 @@
-from flood_mapping.dataset.FloodDatasetLoader import FloodDataset, FloodDatasetLoader
+from flood_mapping.dataset.FloodDataset import FloodDataset, FloodDatasetLoader
