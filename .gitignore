@@ -1,0 +1,10 @@
+*.tif
+*.pt
+*.tar
+*.jpg
+*.png
+*.xml
+*.json
+*.pyc
+*.txt
+test*
