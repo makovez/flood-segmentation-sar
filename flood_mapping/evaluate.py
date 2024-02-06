@@ -14,7 +14,7 @@ from flood_mapping import utils
 
 class ModelEvaluate:
     def __init__(self, data_folder="data", output_folder='output', model_folder="model", model_name="unet-voc.pt",
-                 clip_value=1.0, shuffle_data_loader=True, patch_size=128, batch_size=2):
+                 clip_value=1.0, shuffle_data_loader=True, patch_size=128, batch_size=1):
         self.data_folder = data_folder
         self.model_folder = Path(model_folder)
         self.model_path = self.model_folder / model_name
@@ -64,8 +64,8 @@ class ModelEvaluate:
                 input = input.to(self.device)
                 target = target.type(torch.LongTensor).to(self.device)
 
-                if input.shape[0] < 2:
-                    continue
+                # if input.shape[0] < 2:
+                #     continue
 
                 output = model(input)
                 output_preds = torch.split(output.argmax(dim=1), 1, dim=0)
@@ -74,8 +74,8 @@ class ModelEvaluate:
                     tiles.append(tile.squeeze().cpu())
 
                 # Calculate IOU and accuracy for each batch
-                iou_batch = self.iou_metric(output.argmax(dim=1), target.squeeze())
-                accuracy_batch = self.accuracy_metric(output.argmax(dim=1), target.squeeze())
+                iou_batch = self.iou_metric(output.argmax(dim=1).squeeze(), target.squeeze())
+                accuracy_batch = self.accuracy_metric(output.argmax(dim=1).squeeze(), target.squeeze())
                 iou_scores.append(iou_batch.item())
                 accuracy_scores.append(accuracy_batch.item())
 
