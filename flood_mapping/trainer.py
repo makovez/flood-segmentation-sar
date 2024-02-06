@@ -16,8 +16,8 @@ from torch.utils.data import Dataset
 class Trainer:
     def __init__(self, data_folder="data", model_folder="model", model_name="unet-voc.pt",
                  saving_interval=10, epoch_number=100, batch_size=2, clip_value=1.0,
-                 shuffle_data_loader=False, learning_rate=0.0001, weight_decay=1e-8,
-                 momentum=0.9, test_size=0.2):
+                 shuffle_data_loader=True, learning_rate=0.0001, weight_decay=1e-8,
+                 momentum=0.9, test_size=0.2, patch_size=128):
         self.data_folder = data_folder
         self.model_folder = Path(model_folder)
         self.model_folder.mkdir(exist_ok=True)
@@ -31,13 +31,14 @@ class Trainer:
         self.weight_decay = weight_decay
         self.momentum = momentum
         self.test_size = test_size
+        self.patch_size = patch_size
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.iou_metric = JaccardIndex(task="multiclass", num_classes=2).to(self.device)  # Assuming binary classification
         self.accuracy_metric = Accuracy(task="multiclass", num_classes=2).to(self.device)
         self.normalize_transform = self._create_transforms()
 
-    def _create_dataset(self):
-        flood_dataset = FloodDataset(self.data_folder, (128, 128), train=True)
+    def _create_dataset(self, patch_size):
+        flood_dataset = FloodDataset(self.data_folder, (patch_size, patch_size), train=True)
         X_train, X_test, y_train, y_test = flood_dataset.train_test(test_size=self.test_size)
         return FloodDatasetLoader(X_train, y_train), FloodDatasetLoader(X_test, y_test) 
 
@@ -49,7 +50,7 @@ class Trainer:
 
 
     def train(self):
-        train_dataset, test_dataset = self._create_dataset()
+        train_dataset, test_dataset = self._create_dataset(self.patch_size)
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=self.batch_size, shuffle=self.shuffle_data_loader)
         test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=self.batch_size, shuffle=self.shuffle_data_loader)
 
@@ -120,7 +121,7 @@ class Trainer:
 
         with torch.no_grad():
             for test_batch in test_loader:
-                test_input, test_target = test_batch
+                _, test_input, test_target = test_batch
                 test_input = self.normalize_transform (test_input)
                 test_input = test_input.to(self.device)
                 test_target = test_target.type(torch.LongTensor).to(self.device)

@@ -12,6 +12,7 @@ class Tile(BaseModel):
 
 class Image(BaseModel):
     checksum: str
+    event_name: str
     shape: Union[
         Tuple[int, int, int, int],
         Tuple[int, int, int],
@@ -49,7 +50,7 @@ class ImageTiler:
         #assert sha1(rec_image).hexdigest() == tiled_image.image.checksum, "Reconstructed img do not match original"
         return rec_image
 
-    def tile_image(self, image):
+    def tile_image(self, image, event_name):
         overlap_rows, overlap_cols, rows, cols = self._calculate_overlap(image.shape, self.patch_size)
         tiles = []
         raw_tiles = []
@@ -80,7 +81,7 @@ class ImageTiler:
                 raw_tiles.append(t)
 
                 # print(f"[{j}] x({x}-{x + self.patch_size[0]}), [{i}] y({y}-{y + self.patch_size[1]})\n")
-        image = Image(checksum=sha1(image).hexdigest(), shape=image.shape)
+        image = Image(event_name=event_name, checksum=sha1(image).hexdigest(), shape=image.shape)
         tiled_image = TiledImage(tiles=tiles, image=image, patch_size=self.patch_size)
 
         return tiled_image, raw_tiles
