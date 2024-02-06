@@ -13,16 +13,14 @@ from flood_mapping.dataset import FloodDataset, FloodDatasetLoader
 from flood_mapping import utils
 
 class ModelEvaluate:
-    def __init__(self, data_folder="data", output_folder='output', model_folder="model", model_name="unet-voc.pt",
-                 clip_value=1.0, shuffle_data_loader=True, patch_size=128, batch_size=1):
+    def __init__(self, model_path = 'model/unet-voc.pt', data_folder="data", output_folder='output',
+                 clip_value=1.0, patch_size=128, batch_size=1):
         self.data_folder = data_folder
-        self.model_folder = Path(model_folder)
-        self.model_path = self.model_folder / model_name
+        self.model_path = model_path
         self.output_folder = Path(os.path.join(output_folder, utils.today()))
         self.output_folder.mkdir(exist_ok=True, parents=True)
         self.output_path = self.output_folder
         self.clip_value = clip_value
-        self.shuffle_data_loader = shuffle_data_loader
         self.patch_size = patch_size
         self.batch_size = batch_size
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")

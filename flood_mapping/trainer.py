@@ -121,7 +121,7 @@ class Trainer:
 
         with torch.no_grad():
             for test_batch in test_loader:
-                _, test_input, test_target = test_batch
+                test_input, test_target = test_batch
                 test_input = self.normalize_transform (test_input)
                 test_input = test_input.to(self.device)
                 test_target = test_target.type(torch.LongTensor).to(self.device)
