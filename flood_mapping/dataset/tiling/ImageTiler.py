@@ -1,7 +1,7 @@
 import numpy as np
 from pydantic import BaseModel
 from typing import List, Tuple, Union
-
+import torch
 from hashlib import sha1
 
 class Tile(BaseModel):
@@ -38,8 +38,8 @@ class ImageTiler:
         overlap_cols = int(np.ceil((tile_size[1] * cols - height) / (cols - 1)))
         return overlap_rows, overlap_cols, rows, cols
 
-    def reconstruct(self, tiled_image: TiledImage, tiles: List[np.ndarray]):
-        rec_image = np.zeros(tiled_image.image.shape)
+    def reconstruct(self, tiled_image: TiledImage, tiles: List[np.ndarray], checksum=False, shape=None):
+        rec_image = np.zeros(shape if shape else tiled_image.image.shape)
         for i, tile in enumerate(tiled_image.tiles):
             if len(rec_image.shape) >= 4:
                 rec_image[:, :, tile.x_start:tile.x_end, tile.y_start:tile.y_end] = tiles[i]    
@@ -47,10 +47,11 @@ class ImageTiler:
                 rec_image[:, tile.x_start:tile.x_end, tile.y_start:tile.y_end] = tiles[i]
             elif len(rec_image.shape) >= 2:
                 rec_image[tile.x_start:tile.x_end, tile.y_start:tile.y_end] = tiles[i]
-        #assert sha1(rec_image).hexdigest() == tiled_image.image.checksum, "Reconstructed img do not match original"
+        if checksum:
+            assert sha1(rec_image).hexdigest() == tiled_image.image.checksum, "Reconstructed img do not match original"
         return rec_image
 
-    def tile_image(self, image, event_name):
+    def tile_image(self, image, event_name = '', checksum=False):
         overlap_rows, overlap_cols, rows, cols = self._calculate_overlap(image.shape, self.patch_size)
         tiles = []
         raw_tiles = []
@@ -81,7 +82,9 @@ class ImageTiler:
                 raw_tiles.append(t)
 
                 # print(f"[{j}] x({x}-{x + self.patch_size[0]}), [{i}] y({y}-{y + self.patch_size[1]})\n")
-        image = Image(event_name=event_name, checksum=sha1(image).hexdigest(), shape=image.shape)
+
+
+        image = Image(event_name=event_name, checksum=(sha1(image).hexdigest() if checksum else ''), shape=image.shape)
         tiled_image = TiledImage(tiles=tiles, image=image, patch_size=self.patch_size)
 
         return tiled_image, raw_tiles

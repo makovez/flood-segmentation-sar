@@ -90,16 +90,16 @@ class UNet(nn.Module):
 # from torchsummary import summary
 
 
-# # Move the model to GPU if available
+# # # Move the model to GPU if available
 # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-# model = UNet(dimensions=1).to(device)
+# model = UNet(n_channels=2).to(device)
 
 
 # # Print the summary of the model
-# summary(model, input_size=(1, 128, 128), device=device.type)
+# summary(model, input_size=(2, 128, 128), device=device.type)
 
 # # Create a sample input tensor and move it to the same device as the model
-# sample_input = torch.randn((2, 1, 128, 128)).to(device)
+# sample_input = torch.randn((2, 2, 128, 128)).to(device)
 
 # # Pass the sample input through the model
 # output = model(sample_input)

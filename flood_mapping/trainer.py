@@ -8,8 +8,11 @@ from torchmetrics import JaccardIndex
 from torchmetrics.classification import Accuracy
 from tqdm import tqdm
 
-from flood_mapping.models import UNet
+# from flood_mapping.models import UNet
+from flood_mapping.models.unet_resnet import Unet
 from flood_mapping.dataset import FloodDataset, FloodDatasetLoader
+from flood_mapping.metrics import calculate_accuracy, calculate_iou
+from flood_mapping.losses import CustomCrossEntropyLoss
 from torch.utils.data import Dataset
 
 
@@ -17,7 +20,7 @@ class Trainer:
     def __init__(self, data_folder="data", model_folder="model", model_name="unet-voc.pt",
                  saving_interval=10, epoch_number=100, batch_size=2, clip_value=1.0,
                  shuffle_data_loader=True, learning_rate=0.0001, weight_decay=1e-8,
-                 momentum=0.9, test_size=0.2, patch_size=128):
+                 momentum=0.9, test_size=0.4, patch_size=128, backbone='resnet18', pretrained=False):
         self.data_folder = data_folder
         self.model_folder = Path(model_folder)
         self.model_folder.mkdir(exist_ok=True)
@@ -32,6 +35,8 @@ class Trainer:
         self.momentum = momentum
         self.test_size = test_size
         self.patch_size = patch_size
+        self.backbone = backbone
+        self.pretrained = pretrained
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.iou_metric = JaccardIndex(task="multiclass", num_classes=2).to(self.device)  # Assuming binary classification
         self.accuracy_metric = Accuracy(task="multiclass", num_classes=2).to(self.device)
@@ -39,30 +44,40 @@ class Trainer:
 
     def _create_dataset(self, patch_size):
         flood_dataset = FloodDataset(self.data_folder, (patch_size, patch_size), train=True)
+        weights = flood_dataset.calculate_class_weights()
         X_train, X_test, y_train, y_test = flood_dataset.train_test(test_size=self.test_size)
-        return FloodDatasetLoader(X_train, y_train), FloodDatasetLoader(X_test, y_test) 
+        return weights, FloodDatasetLoader(X_train, y_train), FloodDatasetLoader(X_test, y_test) 
 
     def _create_transforms(self):
         return transforms.Compose([
             transforms.Lambda(lambda x: torch.clamp(x, 0, self.clip_value)),
-            transforms.Normalize(0, self.clip_value)
+            transforms.Normalize(0, self.clip_value),
+            # transforms.RandomHorizontalFlip(),
+            # transforms.RandomVerticalFlip(),
+            # transforms.RandomRotation(30)
         ])
 
 
     def train(self):
-        train_dataset, test_dataset = self._create_dataset(self.patch_size)
+        weights, train_dataset, test_dataset = self._create_dataset(self.patch_size)
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=self.batch_size, shuffle=self.shuffle_data_loader)
         test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=self.batch_size, shuffle=self.shuffle_data_loader)
 
-        model = UNet(n_channels=2, labels=2)
+        # model = UNet(n_channels=2, labels=2)
+        print('self.pretrained: ', self.pretrained)
+        model = Unet(backbone_name=self.backbone, pretrained=self.pretrained)
         model.to(self.device)
 
         if os.path.isfile(self.model_path):
             model.load_state_dict(torch.load(self.model_path, map_location=torch.device(self.device)))
 
-        optimizer = optim.RMSprop(model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay,
-                                  momentum=self.momentum)
-        criterion = nn.CrossEntropyLoss()
+        optimizer = optim.Adam(model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
+                                #   momentum=self.momentum)
+        
+        # weights = torch.tensor([1., 3.]).to(self.device)
+        # criterion = nn.CrossEntropyLoss()
+        criterion = CustomCrossEntropyLoss()
+
 
         for epoch in range(self.epoch_number):
             print(f"Epoch {epoch}")
@@ -89,8 +104,8 @@ class Trainer:
                     losses.append(loss.item())
 
                     # Calculate IOU and accuracy for each batch
-                    iou_batch = self.iou_metric(output.argmax(dim=1), target.squeeze())
-                    accuracy_batch = self.accuracy_metric(output.argmax(dim=1), target.squeeze())
+                    iou_batch = calculate_iou(output.argmax(dim=1), target.squeeze())
+                    accuracy_batch = calculate_accuracy(output.argmax(dim=1), target.squeeze())
                     iou_scores.append(iou_batch.item())
                     accuracy_scores.append(accuracy_batch.item())
 
@@ -109,6 +124,7 @@ class Trainer:
 
                 if (epoch + 1) % self.saving_interval == 0:
                     print("Saving model")
+                    print(self.model_path)
                     torch.save(model.state_dict(), self.model_path)
 
         print("Training completed.")
@@ -128,8 +144,8 @@ class Trainer:
 
                 test_output = model(test_input)
 
-                test_iou_batch = self.iou_metric(test_output.argmax(dim=1), test_target.squeeze())
-                test_accuracy_batch = self.accuracy_metric(test_output.argmax(dim=1), test_target.squeeze())
+                test_iou_batch = calculate_iou(test_output.argmax(dim=1), test_target.squeeze())
+                test_accuracy_batch = calculate_accuracy(test_output.argmax(dim=1), test_target.squeeze())
                 iou_scores.append(test_iou_batch.item())
                 accuracy_scores.append(test_accuracy_batch.item())
 
